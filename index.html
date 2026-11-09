@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Shadow Clash 2D</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090d;color:#fff;font-family:Arial,sans-serif;touch-action:none}
+#game{display:block;width:100vw;height:100vh;background:#101827}
+#ui{position:fixed;inset:0;pointer-events:none}
+button{pointer-events:auto;border:2px solid #ffffff55;background:#171d2bcc;color:#fff;border-radius:50%;width:64px;height:64px;font-size:12px;font-weight:700}
+#left{position:absolute;left:18px;bottom:22px;display:flex;gap:10px}
+#right{position:absolute;right:18px;bottom:18px;display:grid;grid-template-columns:repeat(2,64px);gap:8px}
+#gear{position:absolute;top:70px;left:50%;transform:translateX(-50%);border-radius:12px;width:auto;height:42px;padding:0 14px}
+#restart{position:absolute;top:12px;right:12px;border-radius:10px;width:auto;height:38px}
+#status{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-weight:800;font-size:14px;text-shadow:2px 2px #000}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="ui">
+<div id="status">LUFFY • GEAR 2</div>
+<button id="gear">TROCAR GEAR</button>
+<button id="restart">REINICIAR</button>
+<div id="left"><button data-k="left">◀</button><button data-k="right">▶</button><button data-k="jump">▲</button></div>
+<div id="right"><button data-k="block">DEF</button><button data-k="attack">ATQ</button><button data-k="special">ESPECIAL</button><button data-k="power">ULTIMATE</button></div>
+</div>
+<script>
+const c=document.getElementById('game'),ctx=c.getContext('2d');
+let W,H,DPR,keys={},touch={};
+function resize(){W=innerWidth;H=innerHeight;DPR=devicePixelRatio||1;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)} addEventListener('resize',resize);resize();
+const gears=[
+{name:'GEAR 2',color:'#d9d9d9',speed:1.35,atk:1.0,special:'JET PISTOL'},
+{name:'GEAR 3',color:'#9a9a9a',speed:.9,atk:1.55,special:'GIGANT PISTOL'},
+{name:'GEAR 4 BOUNDMAN',color:'#b3262e',speed:1.05,atk:1.8,special:'KONG GUN'},
+{name:'GEAR 4 SNAKEMAN',color:'#7b3fb3',speed:1.25,atk:1.55,special:'BLACK MAMBA'},
+{name:'GEAR 4 TANKMAN',color:'#d17b25',speed:.72,atk:2.2,special:'CANNONBALL'},
+{name:'GEAR 5',color:'#f2f2f2',speed:1.4,atk:2.0,special:'BAJRANG GUN'}
+];
+let g=0, p, e, msg='';
+function reset(){p={x:W*.25,y:H*.68,vx:0,vy:0,hp:100,en:100,atk:0,sp:0,ult:0,block:false};e={x:W*.72,y:H*.68,hp:100,atk:0};msg='LUTA INICIADA';}
+reset();
+function pressed(k){return !!keys[k]||!!touch[k]}
+function bind(){
+document.querySelectorAll('button[data-k]').forEach(b=>{
+ let k=b.dataset.k;
+ const on=ev=>{ev.preventDefault();touch[k]=true}; const off=ev=>{ev.preventDefault();touch[k]=false};
+ b.addEventListener('touchstart',on,{passive:false});b.addEventListener('touchend',off,{passive:false});b.addEventListener('mousedown',on);b.addEventListener('mouseup',off);b.addEventListener('mouseleave',off);
+});
+document.getElementById('gear').onclick=()=>{g=(g+1)%gears.length;msg=gears[g].name};
+document.getElementById('restart').onclick=reset;
+}
+addEventListener('keydown',ev=>keys[ev.key.toLowerCase()]=true);addEventListener('keyup',ev=>keys[ev.key.toLowerCase()]=false);bind();
+
+function attack(){
+ if(p.atk<=0&&p.sp<=0){p.atk=12;p.en=Math.max(0,p.en-2)}
+}
+function special(){
+ if(p.sp<=0&&p.en>=15){p.sp=24;p.en-=15}
+}
+function ultimate(){
+ if(p.ult<=0&&p.en>=40){p.ult=36;p.en-=40}
+}
+function update(){
+ if(p.hp<=0||e.hp<=0)return;
+ let q=gears[g],dt=1;
+ if(pressed('left'))p.x-=3.6*q.speed*dt;if(pressed('right'))p.x+=3.6*q.speed*dt;
+ if(pressed('jump')&&p.y>=H*.68){p.vy=-10}
+ p.vy+=.5;p.y+=p.vy;if(p.y>H*.68){p.y=H*.68;p.vy=0}
+ p.x=Math.max(55,Math.min(W-55,p.x));p.block=pressed('block');
+ if(pressed('attack'))attack(); if(pressed('special'))special(); if(pressed('power'))ultimate();
+ if(p.atk>0){p.atk--;if(p.atk===5&&Math.abs(p.x-e.x)<105)e.hp=Math.max(0,e.hp-7*q.atk)}
+ if(p.sp>0){p.sp--;if(p.sp===15&&Math.abs(p.x-e.x)<170)e.hp=Math.max(0,e.hp-14*q.atk)}
+ if(p.ult>0){p.ult--;if(p.ult===18&&Math.abs(p.x-e.x)<230)e.hp=Math.max(0,e.hp-30*q.atk)}
+ e.x+=(p.x<e.x?-1:1)*.85;if(Math.abs(p.x-e.x)<90&&e.atk<=0)e.atk=24;
+ if(e.atk>0){e.atk--;if(e.atk===10&&!p.block)p.hp=Math.max(0,p.hp-7)}
+ p.en=Math.min(100,p.en+.08);p.ult=Math.max(0,p.ult);
+ if(e.hp<=0)msg='VOCÊ VENCEU! 🏆';else if(p.hp<=0)msg='ZORO VENCEU! ⚔️';
+ document.getElementById('status').textContent=`${gears[g].name} • ${msg}`;
+}
+function bar(x,y,v,w){ctx.fillStyle='#222';ctx.fillRect(x,y,w,16);ctx.fillStyle=v>30?'#36c95f':'#ff3b30';ctx.fillRect(x,y,w*Math.max(0,v)/100,16);ctx.strokeStyle='#fff';ctx.strokeRect(x,y,w,16)}
+function fighter(a,col,name,enemy=false){
+ctx.save();ctx.translate(a.x,a.y);ctx.fillStyle=col;
+ctx.beginPath();ctx.arc(0,-60,25,0,Math.PI*2);ctx.fill();
+ctx.fillRect(-22,-35,44,58);ctx.fillRect(-30,23,18,55);ctx.fillRect(12,23,18,55);
+ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(-14,-18);ctx.lineTo(-45,8);ctx.moveTo(14,-18);ctx.lineTo(45,8);ctx.stroke();
+if(!enemy&&(p.atk>0||p.sp>0||p.ult>0)){ctx.strokeStyle=p.ult>0?'#fff':p.sp>0?'#f0b43c':'#ddd';ctx.lineWidth=p.ult>0?14:9;ctx.beginPath();ctx.arc(0,-8,p.ult>0?105:70,-.8,.8);ctx.stroke()}
+if(a.block){ctx.strokeStyle='#64b5ff';ctx.lineWidth=10;ctx.beginPath();ctx.arc(0,-12,48,-1.2,1.2);ctx.stroke()}
+ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText(name,0,-94);ctx.restore();
+}
+function draw(){
+ctx.clearRect(0,0,W,H);
+let grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,'#121a31');grad.addColorStop(1,'#39251b');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+ctx.fillStyle='#563b25';ctx.fillRect(0,H*.72,W,H*.28);
+ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.fillText('LUFFY',18,22);ctx.fillText('ZORO',W-60,22);
+bar(18,30, p.hp, Math.min(280,W*.35));bar(W-Math.min(280,W*.35)-18,30,e.hp,Math.min(280,W*.35));
+ctx.fillStyle='#4aa3ff';ctx.fillRect(18,50,Math.min(180,W*.22)*p.en/100,8);
+fighter(p,gears[g].color,'Luffy');fighter(e,'#287a53','Zoro',true);
+}
+function loop(){update();draw();requestAnimationFrame(loop)}loop();
+</script></body></html>
