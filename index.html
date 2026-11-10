@@ -4,98 +4,488 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>Shadow Clash 2D</title>
+
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#07090d;color:#fff;font-family:Arial,sans-serif;touch-action:none}
-#game{display:block;width:100vw;height:100vh;background:#101827}
+*{box-sizing:border-box}
+html,body{
+ margin:0;width:100%;height:100%;overflow:hidden;
+ background:#07090d;color:white;font-family:Arial;
+ touch-action:none;
+}
+#game{width:100vw;height:100vh;display:block}
 #ui{position:fixed;inset:0;pointer-events:none}
-button{pointer-events:auto;border:2px solid #ffffff55;background:#171d2bcc;color:#fff;border-radius:50%;width:64px;height:64px;font-size:12px;font-weight:700}
-#left{position:absolute;left:18px;bottom:22px;display:flex;gap:10px}
-#right{position:absolute;right:18px;bottom:18px;display:grid;grid-template-columns:repeat(2,64px);gap:8px}
-#gear{position:absolute;top:70px;left:50%;transform:translateX(-50%);border-radius:12px;width:auto;height:42px;padding:0 14px}
-#restart{position:absolute;top:12px;right:12px;border-radius:10px;width:auto;height:38px}
-#status{position:absolute;top:10px;left:50%;transform:translateX(-50%);font-weight:800;font-size:14px;text-shadow:2px 2px #000}
+button{
+ pointer-events:auto;border:2px solid #ffffff66;
+ background:#171d2bcc;color:white;border-radius:50%;
+ width:64px;height:64px;font-size:12px;font-weight:bold;
+ touch-action:none;
+}
+#left{
+ position:absolute;left:18px;bottom:20px;
+ display:flex;gap:10px;
+}
+#right{
+ position:absolute;right:15px;bottom:18px;
+ display:grid;grid-template-columns:repeat(2,64px);gap:8px;
+}
+#gear{
+ position:absolute;top:70px;left:50%;
+ transform:translateX(-50%);
+ border-radius:12px;width:auto;height:42px;padding:0 14px;
+}
+#restart{
+ position:absolute;top:12px;right:12px;
+ border-radius:10px;width:auto;height:38px;
+}
+#status{
+ position:absolute;top:10px;left:50%;
+ transform:translateX(-50%);
+ font-size:14px;font-weight:bold;
+ text-shadow:2px 2px black;
+}
+#stick{
+ position:absolute;left:22px;bottom:25px;
+ width:135px;height:135px;border-radius:50%;
+ background:#111827aa;border:3px solid #ffffff55;
+ pointer-events:auto;touch-action:none;
+ box-shadow:0 0 18px #168cff44;
+}
+#knob{
+ position:absolute;left:50%;top:50%;
+ width:58px;height:58px;border-radius:50%;
+ background:#399cff;border:3px solid white;
+ box-shadow:0 0 15px #168cff;
+ transform:translate(-50%,-50%);
+}
+#sound{
+ position:absolute;top:12px;left:12px;
+ border-radius:10px;width:75px;height:38px;
+}
+@media(max-width:500px){
+ #right{right:12px;bottom:18px}
+ #stick{width:125px;height:125px}
+}
 </style>
 </head>
+
 <body>
 <canvas id="game"></canvas>
+
 <div id="ui">
-<div id="status">LUFFY • GEAR 2</div>
-<button id="gear">TROCAR GEAR</button>
-<button id="restart">REINICIAR</button>
-<div id="left"><button data-k="left">◀</button><button data-k="right">▶</button><button data-k="jump">▲</button></div>
-<div id="right"><button data-k="block">DEF</button><button data-k="attack">ATQ</button><button data-k="special">ESPECIAL</button><button data-k="power">ULTIMATE</button></div>
+ <div id="status">LUFFY VS ZORO</div>
+
+ <button id="sound">🔊 SOM</button>
+ <button id="gear">TROCAR GEAR</button>
+ <button id="restart">REINICIAR</button>
+
+ <div id="stick">
+  <div id="knob"></div>
+ </div>
+
+ <div id="right">
+  <button data-k="block">DEF</button>
+  <button data-k="attack">ATQ</button>
+  <button data-k="special">ESPECIAL</button>
+  <button data-k="power">ULTIMATE</button>
+ </div>
 </div>
+
 <script>
-const c=document.getElementById('game'),ctx=c.getContext('2d');
-let W,H,DPR,keys={},touch={};
-function resize(){W=innerWidth;H=innerHeight;DPR=devicePixelRatio||1;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0)} addEventListener('resize',resize);resize();
-const gears=[
-{name:'GEAR 2',color:'#d9d9d9',speed:1.35,atk:1.0,special:'JET PISTOL'},
-{name:'GEAR 3',color:'#9a9a9a',speed:.9,atk:1.55,special:'GIGANT PISTOL'},
-{name:'GEAR 4 BOUNDMAN',color:'#b3262e',speed:1.05,atk:1.8,special:'KONG GUN'},
-{name:'GEAR 4 SNAKEMAN',color:'#7b3fb3',speed:1.25,atk:1.55,special:'BLACK MAMBA'},
-{name:'GEAR 4 TANKMAN',color:'#d17b25',speed:.72,atk:2.2,special:'CANNONBALL'},
-{name:'GEAR 5',color:'#f2f2f2',speed:1.4,atk:2.0,special:'BAJRANG GUN'}
-];
-let g=0, p, e, msg='';
-function reset(){p={x:W*.25,y:H*.68,vx:0,vy:0,hp:100,en:100,atk:0,sp:0,ult:0,block:false};e={x:W*.72,y:H*.68,hp:100,atk:0};msg='LUTA INICIADA';}
-reset();
-function pressed(k){return !!keys[k]||!!touch[k]}
-function bind(){
-document.querySelectorAll('button[data-k]').forEach(b=>{
- let k=b.dataset.k;
- const on=ev=>{ev.preventDefault();touch[k]=true}; const off=ev=>{ev.preventDefault();touch[k]=false};
- b.addEventListener('touchstart',on,{passive:false});b.addEventListener('touchend',off,{passive:false});b.addEventListener('mousedown',on);b.addEventListener('mouseup',off);b.addEventListener('mouseleave',off);
-});
-document.getElementById('gear').onclick=()=>{g=(g+1)%gears.length;msg=gears[g].name};
-document.getElementById('restart').onclick=reset;
+const c=document.getElementById('game');
+const ctx=c.getContext('2d');
+
+let W,H,DPR;
+let keys={},touch={};
+let joy={x:0,y:0};
+let soundOn=true;
+let audio;
+
+function resize(){
+ W=innerWidth;H=innerHeight;
+ DPR=devicePixelRatio||1;
+ c.width=W*DPR;c.height=H*DPR;
+ ctx.setTransform(DPR,0,0,DPR,0,0);
 }
-addEventListener('keydown',ev=>keys[ev.key.toLowerCase()]=true);addEventListener('keyup',ev=>keys[ev.key.toLowerCase()]=false);bind();
+addEventListener('resize',resize);
+resize();
+
+const gears=[
+ {name:'GEAR 2',color:'#d9d9d9',speed:1.35,atk:1,special:'JET PISTOL'},
+ {name:'GEAR 3',color:'#9a9a9a',speed:.9,atk:1.55,special:'GIGANT PISTOL'},
+ {name:'GEAR 4 BOUNDMAN',color:'#b3262e',speed:1.05,atk:1.8,special:'KONG GUN'},
+ {name:'GEAR 4 SNAKEMAN',color:'#7b3fb3',speed:1.25,atk:1.55,special:'BLACK MAMBA'},
+ {name:'GEAR 4 TANKMAN',color:'#d17b25',speed:.72,atk:2.2,special:'CANNONBALL'},
+ {name:'GEAR 5',color:'#f2f2f2',speed:1.4,atk:2,special:'BAJRANG GUN'}
+];
+
+let g=0,p,e,msg='',frame=0;
+
+function reset(){
+ p={
+  x:W*.25,y:H*.68,vy:0,hp:100,en:100,
+  atk:0,sp:0,ult:0,block:false,anim:0
+ };
+ e={
+  x:W*.72,y:H*.68,hp:100,
+  atk:0,anim:0
+ };
+ msg='LUTA INICIADA';
+}
+reset();
+
+function pressed(k){
+ return !!keys[k]||!!touch[k];
+}
+
+function beep(freq=220,duration=.1){
+ if(!soundOn)return;
+ try{
+  audio=audio||new(window.AudioContext||window.webkitAudioContext)();
+  if(audio.state==='suspended')audio.resume();
+  let o=audio.createOscillator();
+  let gain=audio.createGain();
+  o.connect(gain);gain.connect(audio.destination);
+  o.frequency.value=freq;
+  gain.gain.setValueAtTime(.08,audio.currentTime);
+  gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+duration);
+  o.start();o.stop(audio.currentTime+duration);
+ }catch(err){}
+}
+
+document.getElementById('sound').onclick=()=>{
+ soundOn=!soundOn;
+ document.getElementById('sound').textContent=soundOn?'🔊 SOM':'🔇 SOM';
+ if(soundOn)beep(500);
+};
+
+document.getElementById('gear').onclick=()=>{
+ g=(g+1)%gears.length;
+ msg=gears[g].name;
+ beep(500,.15);
+};
+
+document.getElementById('restart').onclick=()=>{
+ reset();beep(350);
+};
+
+document.querySelectorAll('[data-k]').forEach(b=>{
+ let k=b.dataset.k;
+
+ b.addEventListener('pointerdown',ev=>{
+  ev.preventDefault();
+  touch[k]=true;
+  b.setPointerCapture(ev.pointerId);
+ });
+
+ function release(ev){
+  ev.preventDefault();
+  touch[k]=false;
+ }
+ b.addEventListener('pointerup',release);
+ b.addEventListener('pointercancel',release);
+ b.addEventListener('lostpointercapture',()=>touch[k]=false);
+});
+
+addEventListener('keydown',ev=>{
+ keys[ev.key.toLowerCase()]=true;
+});
+addEventListener('keyup',ev=>{
+ keys[ev.key.toLowerCase()]=false;
+});
+
+// JOYSTICK ANALÓGICO
+const stick=document.getElementById('stick');
+const knob=document.getElementById('knob');
+
+function moveStick(ev){
+ const r=stick.getBoundingClientRect();
+ let dx=ev.clientX-(r.left+r.width/2);
+ let dy=ev.clientY-(r.top+r.height/2);
+
+ const max=42;
+ const dist=Math.hypot(dx,dy);
+
+ if(dist>max){
+  dx=dx/dist*max;
+  dy=dy/dist*max;
+ }
+
+ joy.x=dx/max;
+ joy.y=dy/max;
+
+ knob.style.transform=
+ `translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+}
+
+stick.addEventListener('pointerdown',ev=>{
+ ev.preventDefault();
+ stick.setPointerCapture(ev.pointerId);
+ moveStick(ev);
+});
+
+stick.addEventListener('pointermove',ev=>{
+ if(stick.hasPointerCapture(ev.pointerId))moveStick(ev);
+});
+
+function releaseStick(){
+ joy.x=0;joy.y=0;
+ knob.style.transform='translate(-50%,-50%)';
+}
+stick.addEventListener('pointerup',releaseStick);
+stick.addEventListener('pointercancel',releaseStick);
 
 function attack(){
- if(p.atk<=0&&p.sp<=0){p.atk=12;p.en=Math.max(0,p.en-2)}
+ if(p.atk<=0&&p.sp<=0&&p.ult<=0){
+  p.atk=16;beep(180,.12);
+ }
 }
 function special(){
- if(p.sp<=0&&p.en>=15){p.sp=24;p.en-=15}
+ if(p.sp<=0&&p.en>=15){
+  p.sp=24;p.en-=15;beep(330,.2);
+ }
 }
 function ultimate(){
- if(p.ult<=0&&p.en>=40){p.ult=36;p.en-=40}
+ if(p.ult<=0&&p.en>=40){
+  p.ult=36;p.en-=40;beep(90,.4);
+ }
 }
+
 function update(){
+ frame++;
+
  if(p.hp<=0||e.hp<=0)return;
- let q=gears[g],dt=1;
- if(pressed('left'))p.x-=3.6*q.speed*dt;if(pressed('right'))p.x+=3.6*q.speed*dt;
- if(pressed('jump')&&p.y>=H*.68){p.vy=-10}
- p.vy+=.5;p.y+=p.vy;if(p.y>H*.68){p.y=H*.68;p.vy=0}
- p.x=Math.max(55,Math.min(W-55,p.x));p.block=pressed('block');
- if(pressed('attack'))attack(); if(pressed('special'))special(); if(pressed('power'))ultimate();
- if(p.atk>0){p.atk--;if(p.atk===5&&Math.abs(p.x-e.x)<105)e.hp=Math.max(0,e.hp-7*q.atk)}
- if(p.sp>0){p.sp--;if(p.sp===15&&Math.abs(p.x-e.x)<170)e.hp=Math.max(0,e.hp-14*q.atk)}
- if(p.ult>0){p.ult--;if(p.ult===18&&Math.abs(p.x-e.x)<230)e.hp=Math.max(0,e.hp-30*q.atk)}
- e.x+=(p.x<e.x?-1:1)*.85;if(Math.abs(p.x-e.x)<90&&e.atk<=0)e.atk=24;
- if(e.atk>0){e.atk--;if(e.atk===10&&!p.block)p.hp=Math.max(0,p.hp-7)}
- p.en=Math.min(100,p.en+.08);p.ult=Math.max(0,p.ult);
- if(e.hp<=0)msg='VOCÊ VENCEU! 🏆';else if(p.hp<=0)msg='ZORO VENCEU! ⚔️';
- document.getElementById('status').textContent=`${gears[g].name} • ${msg}`;
+
+ let q=gears[g];
+
+ // Movimento do joystick e teclado
+ let mx=joy.x;
+ if(pressed('left'))mx=-1;
+ if(pressed('right'))mx=1;
+
+ p.x+=mx*3.6*q.speed;
+ p.anim+=Math.abs(mx)*.15;
+
+ // Pulo
+ if((joy.y<-.65||pressed('jump'))&&p.y>=H*.68){
+  p.vy=-10;beep(280,.1);
+ }
+
+ p.vy+=.5;
+ p.y+=p.vy;
+
+ if(p.y>H*.68){
+  p.y=H*.68;p.vy=0;
+ }
+
+ p.x=Math.max(55,Math.min(W-55,p.x));
+ p.block=pressed('block');
+
+ if(pressed('attack'))attack();
+ if(pressed('special'))special();
+ if(pressed('power'))ultimate();
+
+ if(p.atk>0){
+  p.atk--;
+  if(p.atk===7&&Math.abs(p.x-e.x)<120){
+   e.hp=Math.max(0,e.hp-7*q.atk);
+  }
+ }
+
+ if(p.sp>0){
+  p.sp--;
+  if(p.sp===15&&Math.abs(p.x-e.x)<190){
+   e.hp=Math.max(0,e.hp-14*q.atk);
+  }
+ }
+
+ if(p.ult>0){
+  p.ult--;
+  if(p.ult===18&&Math.abs(p.x-e.x)<250){
+   e.hp=Math.max(0,e.hp-30*q.atk);
+  }
+ }
+
+ // Zoro inimigo
+ let direction=p.x<e.x?-1:1;
+ if(Math.abs(p.x-e.x)>75)e.x+=direction*.85;
+ e.anim+=.08;
+
+ if(Math.abs(p.x-e.x)<90&&e.atk<=0)e.atk=24;
+
+ if(e.atk>0){
+  e.atk--;
+  if(e.atk===10&&!p.block){
+   p.hp=Math.max(0,p.hp-7);
+   beep(110,.15);
+  }
+ }
+
+ p.en=Math.min(100,p.en+.08);
+
+ if(e.hp<=0)msg='VOCÊ VENCEU!';
+ else if(p.hp<=0)msg='ZORO VENCEU!';
+
+ document.getElementById('status').textContent=
+ gears[g].name+' • '+msg;
 }
-function bar(x,y,v,w){ctx.fillStyle='#222';ctx.fillRect(x,y,w,16);ctx.fillStyle=v>30?'#36c95f':'#ff3b30';ctx.fillRect(x,y,w*Math.max(0,v)/100,16);ctx.strokeStyle='#fff';ctx.strokeRect(x,y,w,16)}
+
+function bar(x,y,v,w){
+ ctx.fillStyle='#222';
+ ctx.fillRect(x,y,w,16);
+ ctx.fillStyle=v>30?'#36c95f':'#ff3b30';
+ ctx.fillRect(x,y,w*Math.max(0,v)/100,16);
+ ctx.strokeStyle='white';
+ ctx.strokeRect(x,y,w,16);
+}
+
+// PERSONAGENS ANIMADOS
 function fighter(a,col,name,enemy=false){
-ctx.save();ctx.translate(a.x,a.y);ctx.fillStyle=col;
-ctx.beginPath();ctx.arc(0,-60,25,0,Math.PI*2);ctx.fill();
-ctx.fillRect(-22,-35,44,58);ctx.fillRect(-30,23,18,55);ctx.fillRect(12,23,18,55);
-ctx.strokeStyle='#fff';ctx.lineWidth=6;ctx.beginPath();ctx.moveTo(-14,-18);ctx.lineTo(-45,8);ctx.moveTo(14,-18);ctx.lineTo(45,8);ctx.stroke();
-if(!enemy&&(p.atk>0||p.sp>0||p.ult>0)){ctx.strokeStyle=p.ult>0?'#fff':p.sp>0?'#f0b43c':'#ddd';ctx.lineWidth=p.ult>0?14:9;ctx.beginPath();ctx.arc(0,-8,p.ult>0?105:70,-.8,.8);ctx.stroke()}
-if(a.block){ctx.strokeStyle='#64b5ff';ctx.lineWidth=10;ctx.beginPath();ctx.arc(0,-12,48,-1.2,1.2);ctx.stroke()}
-ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.textAlign='center';ctx.fillText(name,0,-94);ctx.restore();
+ ctx.save();
+ ctx.translate(a.x,a.y);
+
+ let moving=enemy?Math.sin(a.anim):Math.sin(p.anim);
+ let attacking=enemy?a.atk>0:(p.atk>0||p.sp>0||p.ult>0);
+
+ // Sombra
+ ctx.fillStyle='#0007';
+ ctx.beginPath();
+ ctx.ellipse(0,4,34,8,0,0,Math.PI*2);
+ ctx.fill();
+
+ // Pernas animadas
+ ctx.fillStyle=enemy?'#17603e':'#333';
+ ctx.fillRect(-24+moving*5,23,17,55);
+ ctx.fillRect(8-moving*5,23,17,55);
+
+ // Corpo
+ ctx.fillStyle=col;
+ ctx.fillRect(-23,-35,46,60);
+
+ // Braços animados
+ ctx.strokeStyle=col;
+ ctx.lineWidth=12;
+ ctx.lineCap='round';
+ ctx.beginPath();
+ ctx.moveTo(-18,-20);
+ ctx.lineTo(-38+moving*8,8);
+ ctx.moveTo(18,-20);
+ ctx.lineTo(38-moving*8,8);
+ ctx.stroke();
+
+ // Cabeça
+ ctx.fillStyle='#e9b68a';
+ ctx.beginPath();
+ ctx.arc(0,-57,23,0,Math.PI*2);
+ ctx.fill();
+
+ // Cabelo
+ ctx.fillStyle=enemy?'#153b25':'#222';
+ ctx.beginPath();
+ ctx.arc(0,-68,23,Math.PI,Math.PI*2);
+ ctx.fill();
+
+ // Chapéu do Luffy
+ if(!enemy){
+  ctx.fillStyle='#c99a32';
+  ctx.beginPath();
+  ctx.ellipse(0,-79,27,7,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle='#b92323';
+  ctx.fillRect(-17,-82,34,5);
+ }
+
+ // Espadas do Zoro
+ if(enemy){
+  ctx.strokeStyle='#ddd';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(25,-15);
+  ctx.lineTo(60,30);
+  ctx.moveTo(-25,-15);
+  ctx.lineTo(-60,30);
+  ctx.moveTo(0,-25);
+  ctx.lineTo(0,28);
+  ctx.stroke();
+ }
+
+ // Efeitos de ataque
+ if(attacking){
+  ctx.strokeStyle=p.ult>0?'white':p.sp>0?'#f0b43c':'#ddd';
+  ctx.lineWidth=p.ult>0?15:9;
+  ctx.beginPath();
+  ctx.arc(0,-12,p.ult>0?110:75,-.8,.8);
+  ctx.stroke();
+ }
+
+ // Defesa
+ if(!enemy&&p.block){
+  ctx.strokeStyle='#64b5ff';
+  ctx.lineWidth=10;
+  ctx.beginPath();
+  ctx.arc(0,-12,48,-1.2,1.2);
+  ctx.stroke();
+ }
+
+ ctx.fillStyle='white';
+ ctx.font='bold 12px Arial';
+ ctx.textAlign='center';
+ ctx.fillText(name,0,-98);
+
+ ctx.restore();
 }
+
 function draw(){
-ctx.clearRect(0,0,W,H);
-let grad=ctx.createLinearGradient(0,0,0,H);grad.addColorStop(0,'#121a31');grad.addColorStop(1,'#39251b');ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
-ctx.fillStyle='#563b25';ctx.fillRect(0,H*.72,W,H*.28);
-ctx.fillStyle='#fff';ctx.font='bold 14px Arial';ctx.fillText('LUFFY',18,22);ctx.fillText('ZORO',W-60,22);
-bar(18,30, p.hp, Math.min(280,W*.35));bar(W-Math.min(280,W*.35)-18,30,e.hp,Math.min(280,W*.35));
-ctx.fillStyle='#4aa3ff';ctx.fillRect(18,50,Math.min(180,W*.22)*p.en/100,8);
-fighter(p,gears[g].color,'Luffy');fighter(e,'#287a53','Zoro',true);
+ ctx.clearRect(0,0,W,H);
+
+ let grad=ctx.createLinearGradient(0,0,0,H);
+ grad.addColorStop(0,'#121a31');
+ grad.addColorStop(1,'#39251b');
+ ctx.fillStyle=grad;
+ ctx.fillRect(0,0,W,H);
+
+ // Chão
+ ctx.fillStyle='#563b25';
+ ctx.fillRect(0,H*.72,W,H*.28);
+
+ // Cenário
+ ctx.fillStyle='#ffffff18';
+ for(let i=0;i<W;i+=80){
+  ctx.fillRect(i,H*.72-40,3,40);
+ }
+
+ ctx.fillStyle='white';
+ ctx.font='bold 14px Arial';
+ ctx.fillText('LUFFY',18,22);
+ ctx.fillText('ZORO',W-60,22);
+
+ let bw=Math.min(280,W*.35);
+
+ bar(18,30,p.hp,bw);
+ bar(W-bw-18,30,e.hp,bw);
+
+ ctx.fillStyle='#4aa3ff';
+ ctx.fillRect(18,52,bw*p.en/100,8);
+
+ fighter(p,gears[g].color,'LUFFY');
+ fighter(e,'#287a53','ZORO',true);
+
+ // Energia especial
+ if(p.sp>0||p.ult>0){
+  ctx.fillStyle='#ffffff55';
+  ctx.beginPath();
+  ctx.arc(p.x,p.y-45,80,0,Math.PI*2);
+  ctx.strokeStyle='#ffffffaa';
+  ctx.lineWidth=4;
+  ctx.stroke();
+ }
 }
-function loop(){update();draw();requestAnimationFrame(loop)}loop();
-</script></body></html>
+
+function loop(){
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
